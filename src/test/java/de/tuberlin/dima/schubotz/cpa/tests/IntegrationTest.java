@@ -1,11 +1,15 @@
 package de.tuberlin.dima.schubotz.cpa.tests;
 
+import de.tuberlin.dima.schubotz.cpa.RelationFinder;
 import de.tuberlin.dima.schubotz.cpa.io.WikiDocumentEmitter;
 import de.tuberlin.dima.schubotz.cpa.types.LinkTuple;
 import de.tuberlin.dima.schubotz.cpa.types.WikiDocument;
+import eu.stratosphere.api.common.Plan;
+import eu.stratosphere.client.LocalExecutor;
 import eu.stratosphere.configuration.Configuration;
 import eu.stratosphere.types.Record;
 import eu.stratosphere.util.Collector;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.io.InputStream;
@@ -52,6 +56,16 @@ public class IntegrationTest {
             }
         };
         doc.collectLinks(collector);
+    }
+
+    @Test
+    @Ignore
+    public void TestLocalExecution() throws Exception {
+        RelationFinder rc = new RelationFinder();
+        String inputFilename = "file://" + getClass().getClassLoader().getResources("wikienmathsample.xml").nextElement().getPath();
+        String outputFilename = "file://" + getClass().getClassLoader().getResources("test.out").nextElement().getPath();
+        Plan plan = rc.getPlan(inputFilename, outputFilename);
+        LocalExecutor.execute(plan);
     }
 
 }

@@ -23,15 +23,11 @@ import eu.stratosphere.util.Collector;
 import java.io.DataInput;
 import java.io.DataOutput;
 import java.io.IOException;
-import java.util.AbstractMap;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import static java.lang.Math.abs;
-import static java.lang.Math.pow;
+import static java.lang.Math.*;
 
 /**
  * @author rob
@@ -47,6 +43,7 @@ public class WikiDocument implements Value {
     private final IntValue count = new IntValue(1);
     private final Record target = new Record();
     private java.util.List<java.util.Map.Entry<String, Integer>> outLinks = null;
+    private TreeMap<Integer, Integer> wordMap = null;
     /*
      * Raw raw of the document
      */
@@ -202,27 +199,46 @@ public class WikiDocument implements Value {
     }
 
     private void extractLinks() {
-        Pattern p = Pattern.compile("\\[\\[(.*?)(\\|.*?)?\\]\\]");
+        Pattern p = Pattern.compile("\\[\\[(.*?)((\\||#).*?)?\\]\\]");
         String text = raw.getValue();
         Matcher m = p.matcher(text);
 
         outLinks = new ArrayList<>();
         while (m.find()) {
             if (m.groupCount() >= 1) {
-                outLinks.add(new AbstractMap.SimpleEntry<>(m.group(1).trim(), m.start()));
+                String target = m.group(1).trim();
+                if (target.length() > 0) {
+                    outLinks.add(new AbstractMap.SimpleEntry<>(target, m.start()));
+                }
             }
+        }
+    }
+
+    private void SplitWS() {
+        Pattern p = Pattern.compile("\\s+");
+        String text = raw.getValue();
+        Matcher m = p.matcher(text);
+        int currentWS = 0;
+        wordMap = new TreeMap<>();
+        wordMap.put(0, 0);
+        while (m.find()) {
+            currentWS++;
+            wordMap.put(m.start(), currentWS);
         }
     }
 
     public void collectLinks(Collector<Record> collector) {
         getOutLinks();
-        for (Map.Entry<String, Integer> outLink : outLinks) {
+        getWordMap();
+        for (Map.Entry<String, Integer> outLink1 : outLinks) {
             for (Map.Entry<String, Integer> outLink2 : outLinks) {
-                int order = outLink.getKey().compareTo(outLink2.getKey());
+                int order = outLink1.getKey().compareTo(outLink2.getKey());
                 if (order != 0) {
-                    //TODO: Adjust distance metrics not to use chars but words or whatever is suitable here
-                    recDistance.setValue(1 / (pow(abs(outLink2.getValue() - outLink.getValue()), 1)));
-                    LeftLink.setValue(outLink.getKey());
+                    int w1 = wordMap.floorEntry(outLink1.getValue()).getValue();
+                    int w2 = wordMap.floorEntry(outLink2.getValue()).getValue();
+                    int d = max(abs(w1 - w2), 1);
+                    recDistance.setValue(1 / (pow(d, 2)));
+                    LeftLink.setValue(outLink1.getKey());
                     RightLink.setValue(outLink2.getKey());
                     if (order < 0) {
                         linkTuple.setFirst(LeftLink);
@@ -240,6 +256,13 @@ public class WikiDocument implements Value {
             }
 
         }
+    }
+
+    public TreeMap<Integer, Integer> getWordMap() {
+        if (wordMap == null) {
+            SplitWS();
+        }
+        return wordMap;
     }
 
     public List<Map.Entry<String, Integer>> getOutLinks() {
